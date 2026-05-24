@@ -6,7 +6,17 @@ exports.handler = async function (event) {
   }
 
   try {
-    const { query, system } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const query = body.query;
+    const system = body.system;
+    const apiKey = process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "API key not found. Check environment variables." })
+      };
+    }
 
     const payload = JSON.stringify({
       model: "llama3-8b-8192",
@@ -25,7 +35,7 @@ exports.handler = async function (event) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Length": Buffer.byteLength(payload)
         }
       };
@@ -42,6 +52,14 @@ exports.handler = async function (event) {
     });
 
     const data = JSON.parse(result);
+
+    if (data.error) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "Groq API error: " + data.error.message })
+      };
+    }
+
     const raw = (data?.choices?.[0]?.message?.content || "").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(raw);
 
@@ -54,8 +72,7 @@ exports.handler = async function (event) {
   } catch (err) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Server error. Please try again." })
+      body: JSON.stringify({ error: "Exception: " + err.message })
     };
   }
 };
-
